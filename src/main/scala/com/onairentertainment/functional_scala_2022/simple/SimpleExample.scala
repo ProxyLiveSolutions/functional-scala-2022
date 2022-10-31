@@ -16,7 +16,7 @@ object SimpleExample:
   val Vector2Option: Vector ~> Option = new (Vector ~> Option):
     override def apply[A](fa: Vector[A]): Option[A] = fa.headOption
 
-  val combined: Array ~> Option = Array2List andThen List2Vector andThen Vector2Option
+  val combined: Array ~> Option = Array2List `andThen` List2Vector `andThen` Vector2Option
 
   def main(args: Array[String]): Unit =
     val array1  = Array(1, 2, 3)

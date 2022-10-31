@@ -4,8 +4,10 @@ import com.onairentertainment.functional_scala_2022.account.BusinessLevelError.N
 
 import java.util.UUID
 
-type UserId = UUID
-type Money  = BigInt
+type UserId     = UUID
+type Money      = BigInt
+type AccountMap = Map[UserId, Money]
+type TxMap      = Map[TxId, TxInfo]
 final case class Account(owner: UserId, balance: Money)
 
 object Account:

@@ -17,5 +17,9 @@ object Dependencies {
     val core = "co.fs2" %% "fs2-core" % "3.2.7"
   }
 
-  val all: Deps = Seq(Cats.core, Cats.effect, FS2.core)
+  private object Zio {
+    val catsInterop = "dev.zio" %% "zio-interop-cats" % "3.3.0"
+  }
+
+  val all: Deps = Seq(Cats.core, Cats.effect, FS2.core, Zio.catsInterop)
 }
