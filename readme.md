@@ -81,6 +81,10 @@ So in some cases it can fail while working with money.
 Here is its interface:
 
 ```scala
+type TxId = UUID
+final case class Tx(id: TxId, info: TxInfo)
+final case class TxInfo(from: UserId, to: UserId, amount: Money)
+
 trait AccountService[F[_]]:
   /** Transfers money between accounts */
   def makeTransfer(tx: TxInfo): F[Unit]
