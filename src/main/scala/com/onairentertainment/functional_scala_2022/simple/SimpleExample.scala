@@ -7,6 +7,9 @@ import java.util
 import scala.collection.mutable
 
 object SimpleExample:
+  // Thanks to polymorphic functions in Scala 3
+  type ~~>[F[_], G[_]] = [A] => F[A] => G[A]
+
   val Array2List: Array ~> List = new (Array ~> List):
     override def apply[A](fa: Array[A]): List[A] = fa.toList
 
@@ -15,6 +18,8 @@ object SimpleExample:
 
   val Vector2Option: Vector ~> Option = new (Vector ~> Option):
     override def apply[A](fa: Vector[A]): Option[A] = fa.headOption
+
+  val forScala3Only: Vector ~~> Option = [A] => (va: Vector[A]) => va.headOption
 
   val combined: Array ~> Option = Array2List `andThen` List2Vector `andThen` Vector2Option
 
