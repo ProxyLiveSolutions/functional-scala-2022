@@ -11,6 +11,7 @@ import com.onairentertainment.functional_scala_2022.account.BusinessLevelError
 import java.util.UUID
 import scala.util.control.NoStackTrace
 import cats.effect.std.Random
+import com.onairentertainment.functional_scala_2022.tycl.Sleep.sleepFromTemporal
 
 object CatsMain extends IOApp.Simple:
   override def run: IO[Unit] =

@@ -107,8 +107,7 @@ trait AccountService[F[_]]:
   def getAccount(id: UserId): F[Account]
 ```
 
-### Error-passing and error-handling
-And let's make this service error-prone. So in some cases it can fail while working with money.
+And let's make this service faulty. So in some cases it can fail while working with money.
 For doing so I am going to implement an in-memory cache that randomly raises errors instead for working properly.
 And use it to store user's money. In practice, it is not a good idea but for our case this is exactly what we need.
 
@@ -130,16 +129,127 @@ private final class ErrorProneCacheImpl[F[_], K, V](
   override def insert(key: K, value: V): F[InsertResult] = wrapWithError(underlying.insert(key, value))
   override def update(key: K, value: V): F[UpdateResult] = wrapWithError(underlying.update(key, value))
 ```
+## Additional abstractions
 
-__TBD__
+But before continue we need to introduce two additional type classes - `Sleep[F[_]]` and `FunctorK[F[_[_]]]`.
+
+`Sleep[F[_]]` is a very simple type class that allows us to stop execution of a program for some time.
+We need it to avoid using `Temporal[F[_]]`.
+```scala
+trait Sleep[F[_]]:
+  def sleep(duration: FiniteDuration): F[Unit]
+
+object Sleep:
+  def apply[F[_]](using S: Sleep[F]): Sleep[F] = S
+
+  given sleepFromTemporal[F[_]: Temporal]: Sleep[F] =
+    (duration: FiniteDuration) => Temporal[F].sleep(duration)
+```
+
+`FunctorK[F[_[_]]]` allows us to apply natural transformations to algebras. In other words - to services like `AccountService[F]`.
+We will see how to use it a bit later.
+```scala
+trait FunctorK[Alg[_[_]]]:
+  def mapK[F[_], G[_]](alg: Alg[F])(fg: F ~> G): Alg[G]
+```
+And its implementation for `AccountService[F]`
+```scala
+  given FunctorK[AccountService] = new FunctorK[AccountService]:
+    override def mapK[F[_], G[_]](alg: AccountService[F])(fg: F ~> G): AccountService[G] = new AccountService[G]:
+      override def makeTransfer(tx: TxInfo): G[Unit]  = fg(alg.makeTransfer(tx))
+      override def getAccount(id: UserId): G[Account] = fg(alg.getAccount(id)) 
+```
+As you see, here calls from one implementation of `AccountService` are wrapped in a call of the natural transformation `fg`.
+
+## Error-handling
+Now when we have an error-prone service and all abstractions we need. It's time to deal with these errors. By retrying and logging them.
+What options do we have for that? There are three of them:
+* Implement all logic in one place 😨
+* Introduce wrapper implementations - Java way 😐 
+* Use natural transformations - Scala way 😎🤘
+
+The first option is out of discussion - no way we are going to spend time to discuss it. Just imagine the worst case implementation of entangled code of business logic together with error handling, logging and ad-hoc retries 😄
+
+The second option is a good old Java way of reimplementing interfaces by adding logging/error handling/other features to an underlying implementation.
+```scala
+private[account] class WrapperImpl[F[_]](underlying: AccountService[F], logErrors: String => F[Unit])(using
+    M: MonadBLError[F]
+) extends AccountService[F]:
+  override def makeTransfer(info: TxInfo): F[Unit] = logging(retry(underlying.makeTransfer(info)))
+  override def getAccount(id: UserId): F[Account]  = logging(retry(underlying.getAccount(id)))
+  private def logging[A](fa: F[A]): F[A] = M.onError(fa) { case error =>
+    logErrors(show"AccountService has failed with an error[$error]")
+  }
+  private def retry[A](fa: F[A]) = ??? // omitted
+```
+As you see, we just call `makeTransfer(..)` and `getAccount(..)` of `underlying` and wrapping results in `logging(..)` and `retry(..)`.
+It works but in Scala we can do better. As you see in the definition of `def logging[A](fa: F[A]): F[A]` above we don't really care about a value inside `F[A]` here.
+We need only an error from `F[A]`. This is a typical example of the use case for natural transformation. So let's do it and implement logging and retries as natural transformations.
+
 
 ### Retries
-__TBD__
-Retries themselves
-Gathering of retries' statistic with WriterT.
+For implementing simple retries we are using `MonadError[F, E]` for getting errors from `F[_]` and `Sleep[F]` - for sleeping between attempts 😴
+```scala
+object ErrorRetry:
+  private val SleepTime = 10.milli
+  private val Attempts  = 5
+  def simpleRetryK[F[_], E](using ME: MonadError[F, E], S: Sleep[F]): F ~> F = new (F ~> F):
+    override def apply[A](fa: F[A]): F[A] =
+      def internal(remain: Int): F[A] =
+        ME.handleErrorWith(fa) { err =>
+          if (remain <= 0)
+            ME.raiseError(err)
+          else
+            S.sleep(SleepTime) >> internal(remain - 1)
+        }
+      internal(Attempts)
+```
+### Logging
+For logging let's use the same implementation but defined as `F ~> F`
+```scala
+object ErrorLogger:
+  def logErrorsK[F[_], E: Show](serviceName: String, log: String => F[Unit])(using ME: MonadError[F, E]): F ~> F =
+    new (F ~> F):
+      override def apply[A](fa: F[A]): F[A] = fa.onError { case error =>
+        log(show"$serviceName has failed with an error[$error]")
+      }
+```
 
-### Managing execution context
-__TBD__
+### Wiring
+Now it is time to wire everything together and check how it works.
+```scala
+val logErrorsK = ErrorLogger.logErrorsK[F, BusinessLevelError]("AccountService", log)
+val retryK     = ErrorRetry.simpleRetryK[F, BusinessLevelError]
+for
+  accRef <- Ref.of[F, AccountMap](accounts)
+  txRef  <- Ref.of[F, TxMap](txs)
+  //      (accCache, txCache) = makeCaches(accRef, txRef)
+  (accCache, txCache) = makeFaultyCaches(accRef, txRef)
+  service = makeService(accCache, txCache) // Make an instance of the service
+    .mapK(logErrorsK) // Wraps the service with logging
+    .mapK(retryK)     // Wraps the service with retries
+  beforeUser1 <- service.getAccount(user1)
+  beforeUser2 <- service.getAccount(user2)
+  _           <- log(s"Before: $beforeUser1, $beforeUser2")
+  _           <- service.makeTransfer(TxInfo(user1, user2, 10))
+  afterUser1  <- service.getAccount(user1)
+  afterUser2  <- service.getAccount(user2)
+  _           <- log(s"After: $afterUser1, $afterUser2")
+yield ()
+```
+Output
+```scala
+AccountService has failed with an error[LowLevel(DbError)]
+AccountService has failed with an error[LowLevel(DbError)]
+Before: Account(f545d6b7-15c3-42ae-be40-903729c5525b,10), Account(84705965-e076-4e5a-8a73-4cf2b20da4b1,20)
+AccountService has failed with an error[LowLevel(DbError)]
+AccountService has failed with an error[LowLevel(DbError)]
+AccountService has failed with an error[LowLevel(DbCriticalError)]
+After: Account(f545d6b7-15c3-42ae-be40-903729c5525b,0), Account(84705965-e076-4e5a-8a73-4cf2b20da4b1,30)
+```
+## Conclusion
+Natural transformation is another abstraction available in Scala for a developer to help with separation of logic on different blocks.
+Like in examples above we can use information about errors from IO-monad to implement different ways of error handling without changing the business logic.
 
 ## Links
 

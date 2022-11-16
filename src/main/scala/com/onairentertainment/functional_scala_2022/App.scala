@@ -7,6 +7,8 @@ import cats.effect.Ref
 import com.onairentertainment.functional_scala_2022.account.*
 import com.onairentertainment.functional_scala_2022.account.BusinessLevelError.MonadBLError
 import com.onairentertainment.functional_scala_2022.cache.SimpleCache
+import com.onairentertainment.functional_scala_2022.tycl.{FunctorK, Sleep}
+import FunctorK.*
 
 import java.util.UUID
 
@@ -31,7 +33,7 @@ object App:
       txRef: Ref[F, TxMap]
   ): (AccountCache[F], TxCache[F]) =
     val accountCache       = SimpleCache.refBased(accRef)
-    val failGen            = LowLvlErrorGen.random[F](0.1, 0.1)
+    val failGen            = LowLvlErrorGen.random[F](0.3, 0.05)
     val faultyAccountCache = SimpleCache.errorProne(accountCache, failGen)
     val txCache            = SimpleCache.refBased(txRef)
     val faultyTxCache      = SimpleCache.errorProne(txCache, failGen)
@@ -46,14 +48,17 @@ object App:
     val txDb      = TxDb.make(txCache)
     AccountService.make(txIdGen, accountDb, txDb)
 
-  def runApp[F[_]: Ref.Make: Random: Defer: MonadBLError](): F[Unit] =
+  def runApp[F[_]: Ref.Make: Random: Defer: MonadBLError: Sleep](): F[Unit] =
     import Constants.*
+    val logErrorsK = ErrorLogger.logErrorsK[F, BusinessLevelError]("AccountService", log)
+    val retryK     = ErrorRetry.simpleRetryK[F, BusinessLevelError]
     for
       accRef <- Ref.of[F, AccountMap](accounts)
       txRef  <- Ref.of[F, TxMap](txs)
-//      (accCache, txCache) = makeCaches(accRef, txRef)
       (accCache, txCache) = makeFaultyCaches(accRef, txRef)
-      service             = makeService(accCache, txCache)
+      service = makeService(accCache, txCache) // Make an instance of the service
+        .mapK(logErrorsK) // Wraps the service with logging
+        .mapK(retryK)     // Wraps the service with retries
       beforeUser1 <- service.getAccount(user1)
       beforeUser2 <- service.getAccount(user2)
       _           <- log(s"Before: $beforeUser1, $beforeUser2")
