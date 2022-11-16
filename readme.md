@@ -75,8 +75,7 @@ This can be useful for the cases when a project is being migrated from one IO mo
 
 ## Sample application
 In order to further and to show how natural transformations can be used in more practical cases we need a problem to solve 🙂
-Let's create one by creating a simple service `AccountService` that can transfer money between users' accounts. And let's make this service error-prone.
-So in some cases it can fail while working with money.  
+Let's create one by creating a simple service `AccountService` that can transfer money between users' accounts.
 
 Here is its interface:
 
@@ -93,8 +92,9 @@ trait AccountService[F[_]]:
   def getAccount(id: UserId): F[Account]
 ```
 
-
 ### Error-passing and error-handling
+And let's make this service error-prone. So in some cases it can fail while working with money.
+
 __TBD__
 
 ### Retries

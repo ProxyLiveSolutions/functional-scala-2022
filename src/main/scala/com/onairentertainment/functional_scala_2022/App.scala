@@ -13,6 +13,23 @@ import java.util.UUID
 object App:
   private def delay[F[_]: Applicative: Defer, A](a: => A): F[A] = Defer[F].defer(Applicative[F].pure(a))
   private def log[F[_]: Applicative: Defer](str: String)        = delay(println(str))
+
+  import cats.effect.std.Random
+  import com.onairentertainment.functional_scala_2022.sim.LowLvlErrorGen
+  private def makeFaultyService[F[_]: MonadBLError: Defer: Random](
+      accRef: Ref[F, AccountMap],
+      txRef: Ref[F, TxMap]
+  ): AccountService[F] =
+    val txIdGen            = delay(UUID.randomUUID())
+    val accountCache       = SimpleCache.refBased(accRef)
+    val failGen            = LowLvlErrorGen.random[F](0.1, 0.05)
+    val faultyAccountCache = SimpleCache.errorProne(accountCache, failGen)
+    val accountDb          = AccountDb.make(faultyAccountCache)
+    val txCache            = SimpleCache.refBased(txRef)
+    val faultyTxCache      = SimpleCache.errorProne(txCache, failGen)
+    val txDb               = TxDb.make(faultyTxCache)
+    AccountService.make(txIdGen, accountDb, txDb)
+
   private def makeService[F[_]: MonadBLError: Defer](
       accRef: Ref[F, AccountMap],
       txRef: Ref[F, TxMap]
@@ -24,12 +41,13 @@ object App:
     val txDb         = TxDb.make(txCache)
     AccountService.make(txIdGen, accountDb, txDb)
 
-  def runApp[F[_]: Ref.Make: Defer: MonadBLError](): F[Unit] =
+  def runApp[F[_]: Ref.Make: Random: Defer: MonadBLError](): F[Unit] =
     import Constants.*
     for
       accRef <- Ref.of[F, AccountMap](accounts)
       txRef  <- Ref.of[F, TxMap](txs)
-      service = makeService(accRef, txRef)
+//    service = makeService(accRef, txRef)
+      service = makeFaultyService(accRef, txRef)
       beforeUser1 <- service.getAccount(user1)
       beforeUser2 <- service.getAccount(user2)
       _           <- log(s"Before: $beforeUser1, $beforeUser2")

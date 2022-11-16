@@ -24,7 +24,13 @@ object SimpleCache:
     case KeyAlreadyExists
 
   def refBased[F[_]: Functor, K, V](ref: Ref[F, Map[K, V]]): SimpleCache[F, K, V] = RefBasedCacheImpl(ref)
-  def errorProne[F[_], K, V](
+
+  def errorProne[F[_]: MonadBLError, K, V](
       underlying: SimpleCache[F, K, V],
       errorGen: LowLvlErrorGen[F]
-  )(using MonadError[F, LowLevelError]): SimpleCache[F, K, V] = ErrorProneCacheImpl(underlying, errorGen)
+  ): SimpleCache[F, K, V] =
+    // Disclaimer:
+    // Here we have to use `MonadBLError[..]` as in the current implementation we stick with the type classes provided
+    // by cats. And cats' MonadError[..] is invariant over an error type as it provides both abilities at the same time
+    // - to raise an error and to handle it. This can be overcome by using `Raise[..]` from tofu or cats-mtl.
+    ErrorProneCacheImpl(underlying, errorGen)
