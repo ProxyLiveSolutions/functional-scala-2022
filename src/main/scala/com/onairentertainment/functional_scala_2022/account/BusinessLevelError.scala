@@ -2,12 +2,14 @@ package com.onairentertainment.functional_scala_2022.account
 
 import cats.Show
 import com.onairentertainment.functional_scala_2022.cache.LowLevelError
+import cats.mtl.Tell
 
 sealed trait BusinessLevelError
 
 object BusinessLevelError:
   import cats.MonadError
   type MonadBLError[F[_]] = MonadError[F, BusinessLevelError]
+  type BLErrorTell[F[_]]  = Tell[F, BusinessLevelError]
   final case class NotEnoughMoney(required: Money, current: Money) extends BusinessLevelError
   final case class AccountNotFound(userId: UserId)                 extends BusinessLevelError
   final case class TxAlreadyExists(txId: TxId)                     extends BusinessLevelError
