@@ -1,16 +1,16 @@
 package com.onairentertainment.functional_scala_2022.account
 
 import cats.Applicative
-import com.onairentertainment.functional_scala_2022.cache.SimpleCache
+import com.onairentertainment.functional_scala_2022.cache.Cache
 import BusinessLevelError.{MonadBLError, TxAlreadyExists}
 import cats.syntax.flatMap.*
-import com.onairentertainment.functional_scala_2022.cache.SimpleCache.InsertResult
+import com.onairentertainment.functional_scala_2022.cache.Cache.InsertResult
 
 trait TxDb[F[_]]:
   def saveTx(tx: Tx): F[Unit]
 
 object TxDb:
-  type TxCache[F[_]] = SimpleCache[F, TxId, TxInfo]
+  type TxCache[F[_]] = Cache[F, TxId, TxInfo]
   private final class CacheBasedImpl[F[_]](cache: TxCache[F])(using M: MonadBLError[F]) extends TxDb[F]:
     override def saveTx(tx: Tx): F[Unit] = cache.insert(tx.id, tx.info).flatMap {
       case InsertResult.Success          => M.unit

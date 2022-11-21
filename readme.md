@@ -131,7 +131,7 @@ private final class ErrorProneCacheImpl[F[_], K, V](
 ```
 ## Additional abstractions
 
-But before continue we need to introduce two additional type classes - `Sleep[F[_]]` and `FunctorK[F[_[_]]]`.
+We almost ready. But before continue we need to introduce two additional type classes - `Sleep[F[_]]` and `FunctorK[F[_[_]]]`.
 
 `Sleep[F[_]]` is a very simple type class that allows us to stop execution of a program for some time.
 We need it to avoid using `Temporal[F[_]]`.

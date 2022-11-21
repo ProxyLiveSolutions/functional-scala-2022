@@ -1,16 +1,16 @@
 package com.onairentertainment.functional_scala_2022.account
 
 import cats.syntax.flatMap.*
-import com.onairentertainment.functional_scala_2022.cache.SimpleCache
+import com.onairentertainment.functional_scala_2022.cache.Cache
 import com.onairentertainment.functional_scala_2022.account.BusinessLevelError.{AccountNotFound, MonadBLError}
-import com.onairentertainment.functional_scala_2022.cache.SimpleCache.UpdateResult
+import com.onairentertainment.functional_scala_2022.cache.Cache.UpdateResult
 
 trait AccountDb[F[_]]:
   def findAccount(id: UserId): F[Account]
   def updateAccount(account: Account): F[Unit]
 
 object AccountDb:
-  type AccountCache[F[_]] = SimpleCache[F, UserId, Money]
+  type AccountCache[F[_]] = Cache[F, UserId, Money]
 
   private final class CacheBasedImpl[F[_]](cache: AccountCache[F])(using M: MonadBLError[F]) extends AccountDb[F]:
     override def findAccount(id: UserId): F[Account] = cache.get(id).flatMap {

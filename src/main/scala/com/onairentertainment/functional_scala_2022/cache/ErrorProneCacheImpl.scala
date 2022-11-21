@@ -5,17 +5,17 @@ import cats.syntax.flatMap.*
 import cats.syntax.functor.*
 import com.onairentertainment.functional_scala_2022.account.BusinessLevelError
 import com.onairentertainment.functional_scala_2022.account.BusinessLevelError.MonadBLError
-import com.onairentertainment.functional_scala_2022.cache.SimpleCache.{InsertResult, LowLvlErrorGen, UpdateResult}
+import com.onairentertainment.functional_scala_2022.cache.Cache.{InsertResult, LowLvlErrorGen, UpdateResult}
 
 import scala.annotation.tailrec
 import scala.collection.immutable.SortedMap
 
 private final class ErrorProneCacheImpl[F[_], K, V](
-    underlying: SimpleCache[F, K, V],
+    underlying: Cache[F, K, V],
     errorGen: LowLvlErrorGen[F]
 )(using
     M: MonadBLError[F]
-) extends SimpleCache[F, K, V]:
+) extends Cache[F, K, V]:
   // This function can be defined as a natural transformation itself
   private def wrapWithError[A](fa: F[A]): F[A] = for
     maybeError <- errorGen
