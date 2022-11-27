@@ -25,6 +25,9 @@ private final class ErrorProneCacheImpl[F[_], K, V](
     a <- fa
   yield a
 
-  override def get(key: K): F[Option[V]]                 = wrapWithError(underlying.get(key))
-  override def insert(key: K, value: V): F[InsertResult] = wrapWithError(underlying.insert(key, value))
-  override def update(key: K, value: V): F[UpdateResult] = wrapWithError(underlying.update(key, value))
+  override def get(key: K): F[Option[V]]                 =
+    wrapWithError(underlying.get(key))
+  override def insert(key: K, value: V): F[InsertResult] =
+    wrapWithError(underlying.insert(key, value))
+  override def update(key: K, value: V): F[UpdateResult] =
+    wrapWithError(underlying.update(key, value))

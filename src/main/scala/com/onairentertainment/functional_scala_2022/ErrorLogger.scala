@@ -7,8 +7,12 @@ import cats.syntax.applicativeError.*
 import cats.syntax.show.*
 
 object ErrorLogger:
-  def logErrorsK[F[_], E: Show](serviceName: String, log: String => F[Unit])(using ME: MonadError[F, E]): F ~> F =
+  def logErrorsK[F[_], E: Show](
+      serviceName: String,
+      log: String => F[Unit]
+  )(using ME: MonadError[F, E]): F ~> F =
     new (F ~> F):
-      override def apply[A](fa: F[A]): F[A] = fa.onError { case error =>
-        log(show"$serviceName has failed with an error[$error]")
-      }
+      override def apply[A](fa: F[A]): F[A] =
+        fa.onError { case error =>
+          log(show"$serviceName has failed with an error[$error]")
+        }

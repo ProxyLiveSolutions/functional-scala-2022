@@ -6,6 +6,7 @@ import cats.effect.Temporal
 // `Timer[F[_]]` was removed from cats-effect without a proper replacement - GenTemporal is way too powerful to be useful.
 // But let's add it here as we need it for retries
 trait Sleep[F[_]]:
+  /** Semantically block the fiber for the specified duration. */
   def sleep(duration: FiniteDuration): F[Unit]
 
 object Sleep:

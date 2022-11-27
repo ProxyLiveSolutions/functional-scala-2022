@@ -33,7 +33,7 @@ object App:
       txRef: Ref[F, TxMap]
   ): (AccountCache[F], TxCache[F]) =
     val accountCache       = Cache.refBased(accRef)
-    val failGen            = LowLvlErrorGen.random[F](0.1, 0.05)
+    val failGen            = LowLvlErrorGen.random[F](0.2, 0.05)
     val faultyAccountCache = Cache.errorProne(accountCache, failGen)
     val txCache            = Cache.refBased(txRef)
     val faultyTxCache      = Cache.errorProne(txCache, failGen)

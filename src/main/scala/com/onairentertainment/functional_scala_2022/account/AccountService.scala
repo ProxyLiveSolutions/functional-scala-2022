@@ -15,9 +15,16 @@ trait AccountService[F[_]]:
 
 object AccountService:
   given FunctorK[AccountService] = new FunctorK[AccountService]:
-    override def mapK[F[_], G[_]](alg: AccountService[F])(fg: F ~> G): AccountService[G] = new AccountService[G]:
-      override def makeTransfer(tx: TxInfo): G[Unit]  = fg(alg.makeTransfer(tx))
-      override def getAccount(id: UserId): G[Account] = fg(alg.getAccount(id))
+    override def mapK[F[_], G[_]](
+        alg: AccountService[F]
+    )(
+        fg: F ~> G
+    ): AccountService[G] =
+      new AccountService[G]:
+        override def makeTransfer(tx: TxInfo): G[Unit] =
+          fg(alg.makeTransfer(tx))
+        override def getAccount(id: UserId): G[Account] =
+          fg(alg.getAccount(id))
 
   def make[F[_]: MonadBLError](txIdGen: F[TxId], accountDb: AccountDb[F], txDb: TxDb[F]): AccountService[F] =
     new CleanImpl[F](txIdGen, accountDb, txDb)
